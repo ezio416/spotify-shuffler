@@ -66,6 +66,7 @@ def discord_notify(msg: str | Exception) -> None:
     log(msg)
 
     if 'webhook_url' in config:
+        time.sleep(1.0)
         webhook = discord_webhook.DiscordWebhook(config['webhook_url'])
         webhook.add_embed(discord_webhook.DiscordEmbed('spotify-shuffler', msg))
         webhook.execute()
