@@ -33,13 +33,51 @@ CONFIG_FILE            = os.path.join(SCRIPT_DIR, 'config.json')
 LOG_FILE               = os.path.join(SCRIPT_DIR, 'log.log')
 WAIT_TIME_MS           = 2000
 
-active_device_id = ''
-auth             = {}
-auth_code        = ''
-config           = {}
-last_refresh     = 0
-last_request     = 0
-shuffle          = False
+active_device = ''
+auth          = {}
+auth_code     = ''
+config        = {}
+last_device   = ''
+last_refresh  = 0
+last_request  = 0
+
+
+def disable_shuffle() -> bool:
+    global auth
+
+    req = requests.put(
+        f'{BASE_URL}/me/player/shuffle?state=false',
+        headers={
+            'Authorization': auth['access']
+        }
+    )
+
+    if req.status_code != CODE_GOOD:
+        log(f'failed to disable shuffle ({req.status_code}): {req.text}')
+        return False
+
+    log('disabled shuffle')
+
+    return True
+
+
+def enable_shuffle() -> bool:
+    global auth
+
+    req = requests.put(
+        f'{BASE_URL}/me/player/shuffle?state=true',
+        headers={
+            'Authorization': auth['access']
+        }
+    )
+
+    if req.status_code != CODE_GOOD:
+        log(f'failed to enable shuffle ({req.status_code}): {req.text}')
+        return False
+
+    log('enabled shuffle')
+
+    return True
 
 
 def get_auth() -> bool:
@@ -92,22 +130,55 @@ def get_auth_code() -> bool:
     return len(auth_code) > 0
 
 
-def get_devices():
+def get_playback_state() -> bool:
+    global active_device
     global auth
+    global last_device
 
-    ...
+    req = requests.get(
+        f'{BASE_URL}/me/player',
+        headers={
+            'Authorization': auth['access']
+        }
+    )
 
+    if req.status_code != CODE_GOOD:
+        if req.status_code != CODE_NO_CONTENT:
+            log(f'failed to get playback state ({req.status_code}): {req.text}')
 
-def get_playback_state():
-    global auth
+        active_device = ''
 
-    ...
+        if last_device:
+            log(f'device lost (was {last_device})')
+
+        last_device = ''
+
+        return False
+
+    try:
+        data = req.json()
+        active_device = data['device']['name']
+        if last_device != active_device:
+            handle_new_device()
+
+        return True
+
+    except Exception as e:
+        log(f'failed to get playback state: {e}')
+        return False
 
 
 def handle_new_device():
+    global active_device
     global auth
+    global last_device
 
-    ...
+    log(f'new device: {active_device} (was {last_device if last_device else '<none>'})')
+
+    last_device = active_device
+
+    disable_shuffle()
+    enable_shuffle()
 
 
 def load_auth() -> bool:
@@ -136,7 +207,9 @@ def load_config() -> bool:
 
             return all((
                 'client_id' in config,
-                'client_secret' in config
+                len(config['client_id']) == 32,
+                'client_secret' in config,
+                len(config['client_secret']) == 32
             ))
 
     except Exception:
@@ -172,40 +245,44 @@ def save_auth() -> bool:
         return False
 
 
-def toggle_shuffle() -> bool:
-    global auth
-
-    ...
-
-
 def wait() -> None:
     ...
 
 
 def main() -> None:
-    if not load_auth():
-        log('getting auth')
+    try:
+        if not load_auth():
+            log('getting auth')
 
-        if not load_config():
-            log('bad/missing config')
-            return
+            if not load_config():
+                log('bad/missing config')
+                raise Exception
 
-        auth['basic'] = f'Basic {base64.b64encode(f'{config['client_id']}:{config['client_secret']}'.encode()).decode()}'
+            auth['basic'] = f'Basic {base64.b64encode(f'{config['client_id']}:{config['client_secret']}'.encode()).decode()}'
 
-        if not get_auth_code():
-            log('missing auth code')
-            return
+            if not get_auth_code():
+                log('missing auth code')
+                raise Exception
 
-        if not get_auth():
-            return
+            if not get_auth():
+                raise Exception
 
-        if not save_auth():
-            log('failed to save auth')
-            return
+            if not save_auth():
+                log('failed to save auth')
+                raise Exception
 
-    log('loaded auth')
+        log('loaded auth')
 
-    ...
+        while True:
+            time.sleep(2)
+
+            get_playback_state()
+
+    except Exception as e:
+        ...  # discord notify?
+
+    finally:
+        ...  # discord notify?
 
 
 if __name__ == '__main__':
