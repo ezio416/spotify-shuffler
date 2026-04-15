@@ -5,14 +5,13 @@ import os
 import time
 import webbrowser
 
-import discord_webhook
 import pytz
 import requests
 
 
 AUTH_BASE_URL          = 'https://accounts.spotify.com/api'
 AUTH_CONTENT_TYPE      = 'application/x-www-form-urlencoded'
-BASE_CONFIG            = { 'client_id': '', 'client_secret': '', 'webhook_url': '' }
+BASE_CONFIG            = { 'client_id': '', 'client_secret': '', 'timezone': '', 'webhook_url': '' }
 BASE_URL               = 'https://api.spotify.com/v1'
 CODE_GOOD              = 200
 CODE_CREATED           = 201
@@ -65,8 +64,9 @@ def discord_notify(msg: str | Exception) -> None:
 
     log(msg)
 
-    if 'webhook_url' in config:
+    if 'webhook_url' in config and config['webhook_url']:
         time.sleep(1.0)
+        import discord_webhook
         webhook = discord_webhook.DiscordWebhook(config['webhook_url'])
         webhook.add_embed(discord_webhook.DiscordEmbed('spotify-shuffler', str(msg)))
         webhook.execute()
@@ -242,9 +242,18 @@ def load_config() -> bool:
 
 
 def log(msg: str) -> None:
+    global config
+
     utc = datetime.datetime.now(pytz.timezone('UTC')).strftime(f'%Y-%m-%d %H:%M:%S.%f')[:-3]
-    denver = f'Denver {datetime.datetime.now(pytz.timezone('America/Denver')).strftime('%H:%M')}'
-    text = f'[{utc} ({denver})] {msg}'
+
+    tz = ''
+    if 'timezone' in config and config['timezone']:
+        try:
+            tz = f'{config['timezone'].split('/')[1]} {datetime.datetime.now(pytz.timezone(config['timezone'])).strftime('%H:%M')}'
+        except Exception:
+            pass
+
+    text = f'[{utc}{f'({tz})' if tz else ''}] {msg}'
 
     print(text)
 
