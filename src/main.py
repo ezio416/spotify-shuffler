@@ -31,15 +31,12 @@ SCRIPT_DIR             = os.path.dirname(os.path.dirname(os.path.abspath(__file_
 AUTH_FILE              = os.path.join(SCRIPT_DIR, 'auth.json')
 CONFIG_FILE            = os.path.join(SCRIPT_DIR, 'config.json')
 LOG_FILE               = os.path.join(SCRIPT_DIR, 'log.log')
-WAIT_TIME_MS           = 2000
 
 active_device = ''
 auth          = {}
 auth_code     = ''
 config        = {}
 last_device   = ''
-last_refresh  = 0
-last_request  = 0
 
 
 def disable_shuffle() -> bool:
@@ -146,6 +143,9 @@ def get_playback_state() -> bool:
         if req.status_code != CODE_NO_CONTENT:
             log(f'failed to get playback state ({req.status_code}): {req.text}')
 
+            if req.status_code == CODE_UNAUTHORIZED:
+                refresh_auth()
+
         active_device = ''
 
         if last_device:
@@ -160,7 +160,6 @@ def get_playback_state() -> bool:
         active_device = data['device']['name']
         if last_device != active_device:
             handle_new_device()
-
         return True
 
     except Exception as e:
@@ -230,7 +229,36 @@ def log(msg: str) -> None:
 def refresh_auth() -> bool:
     global auth
 
-    ...
+    log('refreshing token')
+
+    req = requests.post(
+        f'{AUTH_BASE_URL}/token'
+            + '?grant_type=refresh_token'
+            + f'&refresh_token={auth['refresh']}',
+        headers={
+            'Authorization': auth['basic'],
+            'Content-Type': AUTH_CONTENT_TYPE
+        }
+    )
+
+    if req.status_code != CODE_GOOD:
+        log(f'failed to refresh token ({req.status_code}): {req.text}')
+        return False
+
+    try:
+        data = req.json()
+        auth['access'] = f'{data['token_type']} {data['access_token']}'
+        log('refreshed auth')
+
+        if not save_auth():
+            log('failed to save auth')
+            return False
+
+        return True
+
+    except Exception as e:
+        log(f'failed to refresh token: {e}')
+        return False
 
 
 def save_auth() -> bool:
@@ -243,10 +271,6 @@ def save_auth() -> bool:
 
     except Exception:
         return False
-
-
-def wait() -> None:
-    ...
 
 
 def main() -> None:
@@ -274,9 +298,8 @@ def main() -> None:
         log('loaded auth')
 
         while True:
-            time.sleep(2)
-
             get_playback_state()
+            time.sleep(5.0)
 
     except Exception as e:
         ...  # discord notify?
