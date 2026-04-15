@@ -5,12 +5,14 @@ import os
 import time
 import webbrowser
 
+import discord_webhook
 import pytz
 import requests
 
 
 AUTH_BASE_URL          = 'https://accounts.spotify.com/api'
 AUTH_CONTENT_TYPE      = 'application/x-www-form-urlencoded'
+BASE_CONFIG            = { 'client_id': '', 'client_secret': '', 'webhook_url': '' }
 BASE_URL               = 'https://api.spotify.com/v1'
 CODE_GOOD              = 200
 CODE_CREATED           = 201
@@ -58,6 +60,17 @@ def disable_shuffle() -> bool:
     return True
 
 
+def discord_notify(msg: str | Exception) -> None:
+    global config
+
+    log(msg)
+
+    if 'webhook_url' in config:
+        webhook = discord_webhook.DiscordWebhook(config['webhook_url'])
+        webhook.add_embed(discord_webhook.DiscordEmbed('spotify-shuffler', msg))
+        webhook.execute()
+
+
 def enable_shuffle() -> bool:
     global auth
 
@@ -75,6 +88,18 @@ def enable_shuffle() -> bool:
     log('enabled shuffle')
 
     return True
+
+
+def generate_config() -> bool:
+    log('generating config')
+
+    try:
+        with open(CONFIG_FILE, 'w', newline='\n') as f:
+            json.dump(BASE_CONFIG, f, indent=4, sort_keys=True)
+            return True
+
+    except Exception:
+        return False
 
 
 def get_auth() -> bool:
@@ -275,25 +300,23 @@ def save_auth() -> bool:
 
 def main() -> None:
     try:
+        if not load_config():
+            generate_config()
+            raise Exception('blank config')
+
         if not load_auth():
             log('getting auth')
-
-            if not load_config():
-                log('bad/missing config')
-                raise Exception
 
             auth['basic'] = f'Basic {base64.b64encode(f'{config['client_id']}:{config['client_secret']}'.encode()).decode()}'
 
             if not get_auth_code():
-                log('missing auth code')
-                raise Exception
+                raise Exception('missing auth code')
 
             if not get_auth():
-                raise Exception
+                raise Exception('failed to get auth')
 
             if not save_auth():
-                log('failed to save auth')
-                raise Exception
+                raise Exception('failed to save auth')
 
         log('loaded auth')
 
@@ -302,10 +325,10 @@ def main() -> None:
             time.sleep(5.0)
 
     except Exception as e:
-        ...  # discord notify?
+        discord_notify(e)
 
     finally:
-        ...  # discord notify?
+        discord_notify('loop broke')
 
 
 if __name__ == '__main__':
