@@ -253,7 +253,7 @@ def log(msg: str) -> None:
         except Exception:
             pass
 
-    text = f'[{utc}{f'({tz})' if tz else ''}] {msg}'
+    text = f'[{utc}{f' ({tz})' if tz else ''}] {msg}'
 
     print(text)
 
