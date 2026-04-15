@@ -32,7 +32,7 @@ REDIRECT_URI           = 'http://127.0.0.1:7777/callback'
 SCRIPT_DIR             = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUTH_FILE              = os.path.join(SCRIPT_DIR, 'auth.json')
 CONFIG_FILE            = os.path.join(SCRIPT_DIR, 'config.json')
-LOG_FILE               = os.path.join(SCRIPT_DIR, 'log.log')
+LOG_FILE               = os.path.join(SCRIPT_DIR, 'shuffler.log')
 
 active_device = ''
 auth          = {}

@@ -1,9 +1,9 @@
 # Extensions
+*.json
 *.log
 
 # Files
-auth.json
-config.json
+
 
 # Folders
 
